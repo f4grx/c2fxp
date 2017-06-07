@@ -4,12 +4,13 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <unistd.h>
 
 #include "c2enc.h"
 
 /* Read RAW input file, format is 8000 Hz Mono, int16_t */
 
-#define NSAMPLES 512
+#define NSAMPLES CODEC2_INPUTSAMPLES
 #define BUFSIZE (NSAMPLES * sizeof(int16_t))
 
 
@@ -17,7 +18,7 @@ int main(int argc, char **argv)
 {
   int fd;
   struct c2enc_context_s ctx;
-  uint8_t *buf = NULL;
+  uint16_t *buf = NULL;
   int ret = 0;
 
   buf = malloc(BUFSIZE);
@@ -50,10 +51,10 @@ int main(int argc, char **argv)
       ret = read(fd, buf, BUFSIZE);
       if(ret < BUFSIZE)
         {
-          memset(buf+ret, 0, BUFSIZE - ret); /* pad */
+          memset((uint8_t*)buf+ret, 0, BUFSIZE - ret); /* pad */
         }
 
-      c2enc_process(&ctx, buf, BUFSIZE/2);
+      printf("Managed %d samples\n", c2enc_write(&ctx, buf, NSAMPLES) );
     }
   while(ret>0);
 
