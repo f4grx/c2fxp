@@ -54,6 +54,7 @@ static int16_t nlp_fir[48] =
 static void c2enc_nlp(struct c2enc_context_s *ctx)
 {
   uint32_t buf;
+  int i;
 
   /* Square the last samples */
 
