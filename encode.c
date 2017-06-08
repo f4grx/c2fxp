@@ -26,21 +26,23 @@
 #include <errno.h>
 #include <unistd.h>
 
-#include "c2enc.h"
+#include "c2fxp.h"
 
 /* Read RAW input file, format is 8000 Hz Mono, int16_t */
 
 #define NSAMPLES CODEC2_INPUTSAMPLES
 #define BUFSIZE (NSAMPLES * sizeof(int16_t))
 
+struct c2enc_context_s ctx;
 
+/* ========================================================================== */
 int main(int argc, char **argv)
 {
   int fd;
-  struct c2enc_context_s ctx;
   uint16_t *buf = NULL;
   int ret = 0;
 
+  printf("sizeof(struct c2enc_context_s) = %lu\n", sizeof(struct c2enc_context_s));
   buf = malloc(BUFSIZE);
 
   if (!buf)
