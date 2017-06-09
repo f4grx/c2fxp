@@ -52,4 +52,13 @@ static inline q31_t q31_mul(q31_t a, q31_t b)
     return ((int64_t)a * (int64_t)b) >> Q31BITS;
   }
 
+/* Complex multiplications */
+
+#define q15_cmul(dr,di, ar,ai, br,bi) do { \
+  q15_t __tr__ = q15_mul(ar, br) - q15_mul(ai, bi); \
+  q15_t __ti__ = q15_mul(ar, bi) + q15_mul(br, ai); \
+  dr = __tr__; \
+  di = __ti__; \
+} while(0)
+
 #endif /* FXPMATH__H */

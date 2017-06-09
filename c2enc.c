@@ -1,19 +1,19 @@
 /*
  * c2fxp - codec2 fixed point encoder/decoder.
  * Copyright (C) 2017  Sebastien F4GRX <f4grx@f4grx.net>
+ * Based on original code by David Rowe <david@rowetel.com>
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License version 2.1 as published by the Free Software Foundation.
  *
- * This program is distributed in the hope that it will be useful,
+ * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /* codec2 encoder implementation */
@@ -76,6 +76,8 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
 {
   int i,j;
   q15_t tmp;
+  q15_t gmax;
+  int gmax_bin;
 
   /* Square the last samples */
 
@@ -93,6 +95,7 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
       tmp += q15_mul(COEFF, ctx->nlpmemy);
       ctx->nlpmemx = ctx->nlpsq[i];
       ctx->nlpmemy = tmp;
+      ctx->nlpsq[i] = tmp;
     }
 
   /* Low pass FIR the last samples */
@@ -111,6 +114,7 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
           tmp += q15_mul(ctx->nlpmemfir[j], nlpfir[j]);
         }
       ctx->nlpsq[i] = tmp;
+      printf("%d\n", ctx->nlpsq[i]);
     }
 
   /* Decimation for ALL samples. This means that the result is an overlapped analysis. */
@@ -130,9 +134,34 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
     }
 
   /* FFT of filtered squared samples */
+
   q15_fft(ctx->nlpfftr, ctx->nlpffti, CODEC2_FFTSAMPLES);
 
+  /* Compute amplitude */
+
+  for(i=0; i<CODEC2_FFTSAMPLES; i++)
+    {
+      ctx->nlpfftr[i]  = q15_mul(ctx->nlpfftr[i], ctx->nlpfftr[i]);
+      ctx->nlpfftr[i] += q15_mul(ctx->nlpffti[i], ctx->nlpffti[i]);
+    }
+
+#define F_MIN_S 50
+#define F_MAX_S 400
+
   /* Find global peak */
+  gmax = 0;
+  gmax_bin = CODEC2_FFTSAMPLES*5*F_MIN_S/8000;
+
+  for(i=CODEC2_FFTSAMPLES*5*F_MIN_S/8000; i<=CODEC2_FFTSAMPLES*5*F_MAX_S/8000; i++)
+    {
+//printf("i=%d val=%d\n", i, ctx->nlpfftr[i]);
+      if (ctx->nlpfftr[i] > gmax)
+        {
+          gmax = ctx->nlpfftr[i];
+          gmax_bin = i;
+        }
+    }
+//printf("imax=%d valmax=%d\n", gmax_bin, gmax);
 
   /* Post process using the sub-multiples method (MBE is not used) */
 
@@ -146,16 +175,16 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
  */
 static int c2enc_process_samples(struct c2enc_context_s *ctx, int16_t *buf)
 {
-  printf("process a block\n");
-
   /* Second step: add these samples to the end of the rolling input buffer */
 
-  memmove(ctx->input, ctx->input+CODEC2_INPUTSAMPLES, 3*CODEC2_INPUTSAMPLES);
-  memcpy(ctx->input + 3*CODEC2_INPUTSAMPLES, buf, CODEC2_INPUTSAMPLES);
+  memmove(ctx->input, ctx->input+CODEC2_INPUTSAMPLES, 3*CODEC2_INPUTSAMPLES * sizeof(int16_t));
+  memcpy(ctx->input + 3*CODEC2_INPUTSAMPLES, buf, CODEC2_INPUTSAMPLES * sizeof(int16_t));
 
   /* Run the non linear pitch estimation algorithm */
 
   c2enc_nlp(ctx);
+
+  ctx->frame +=1;
 
   return 0;
 }
@@ -167,6 +196,8 @@ static int c2enc_process_samples(struct c2enc_context_s *ctx, int16_t *buf)
 int c2enc_init(struct c2enc_context_s *ctx)
 {
   int i;
+
+  ctx->frame=0;
 
   /* Erase sample history (4 80 sample frames) */
 

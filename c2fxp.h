@@ -1,19 +1,19 @@
 /*
  * c2fxp - codec2 fixed point encoder/decoder.
  * Copyright (C) 2017  Sebastien F4GRX <f4grx@f4grx.net>
+ * Based on original code by David Rowe <david@rowetel.com>
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License version 2.1 as published by the Free Software Foundation.
  *
- * This program is distributed in the hope that it will be useful,
+ * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /* codec2 encoder public API */
@@ -42,6 +42,8 @@
 struct c2enc_context_s
 {
   q15_t input[4*CODEC2_INPUTSAMPLES]; /* buffer for input samples, 4 frames */
+  uint32_t frame;
+  uint32_t logframe;
 
   /* NLP */
   q15_t nlpsq[4*CODEC2_INPUTSAMPLES]; /* buffer for squared input samples, 4 frames */

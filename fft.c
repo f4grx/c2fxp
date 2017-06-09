@@ -1,4 +1,20 @@
-/* fft computations */
+/*
+ * fft - fixed point Fast Fourier Transform
+ * Copyright (C) 2017  Sebastien F4GRX <f4grx@f4grx.net>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <stdint.h>
 #include <stdio.h>
 
@@ -16,6 +32,7 @@ static const uint32_t tab32[32] =
   19, 27, 23,  6, 26,  5,  4, 31
 };
 
+/* ========================================================================== */
 uint32_t log2_32(uint32_t value)
 {
   value |= value >> 1;
@@ -26,24 +43,26 @@ uint32_t log2_32(uint32_t value)
   return tab32[(uint32_t)(value*0x07C4ACDD) >> 27];
 }
 
-/* Fast Bit reversal */
-/* A FAST RECURSIVE BIT-REVERSAL ALGORITHM' Jechang Jeong and William J. Williams, doi:10.1109@ICASSP.1990.115695 */
 
-/* same for 2 arrays simultaneously */
+/* ========================================================================== */
 static inline void q15_swap2(q15_t *arr1, q15_t *arr2, int a, int b) {
   q15_t x;
   x = arr1[a]; arr1[a] = arr1[b]; arr1[b] = x;
   x = arr2[a]; arr2[a] = arr2[b]; arr2[b] = x;
 }
 
+/* ========================================================================== */
+/* Fast Bit reversal */
+/* A FAST RECURSIVE BIT-REVERSAL ALGORITHM' Jechang Jeong and William J. Williams, doi:10.1109@ICASSP.1990.115695 */
 void q15_bitreverse2(q15_t *data1, q15_t *data2, int m)
 {
   //int br[256]; //enough for 131072 points (m=17, m2=8)
   //int br[128]; //enough for 32768 points (m=15, m2=7)
-  int br[64]; //enough for 8192 points (m=13, m2=6)
+  //int br[64]; //enough for 8192 points (m=13, m2=6)
+  int br[32]; //enough for 2048 points (m=11, m2=5)
   int m2,c,odd,offset,b_size,i,j,k;
   m2 = m >> 1;
-  if(m2>7) return; //Error
+  if(m2>5) return; //Error
 
   c  = 1 << m2;
   odd = 0;
@@ -85,21 +104,15 @@ void q15_bitreverse2(q15_t *data1, q15_t *data2, int m)
     }
 }
 
-/* naive float implementation (wikipedia algorithm, with some improvements) */
+/* ========================================================================== */
 #include <math.h>
-
 void cordicfq15(q15_t *vcos, q15_t *vsin, float angle) {
     *vcos = FTOQ15(cos(angle));
     *vsin = FTOQ15(sin(angle));
 }
 
-#define cpmulq15(dr,di, ar,ai, br,bi) do { \
-  q15_t __tr__ = q15_mul(ar, br) - q15_mul(ai, bi); \
-  q15_t __ti__ = q15_mul(ar, bi) + q15_mul(br, ai); \
-  dr = __tr__; \
-  di = __ti__; \
-} while(0)
-
+/* ========================================================================== */
+/* naive implementation (wikipedia algorithm, with some improvements) */
 int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
 {
   uint32_t s;
@@ -113,10 +126,7 @@ int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
   q15_t tr, ti;
   q15_t ur, ui;
 
-  //printf("fft %d points, log2=%d\n",n,rounds);
   q15_bitreverse2(datar, datai, rounds);
-
-  //printf("data bitreversed\n");
 
   for(s=1; s<=rounds; s++)
     {
@@ -125,18 +135,14 @@ int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
       m2 = m >> 1;
       angle = -2.0*M_PI/(float)m;
       cordicfq15(&wmr, &wmi, angle);
-      //printf("round %d m=%d angle=%f wm=%f%+fj\n",s,m,angle, Q15TOF(wmr),Q15TOF(wmi) );
 
       for(k = 0; k < n; k += m)
         {
-          //printf("  k=%d\n",k);
           wr=1; wi=0;
 
           for(j = 0 ; j < m2; j++)
             {
-              //printf("    j=%d w=%f%+fj, indexes %d and %d\n",j, Q15TOF(wr),Q15TOF(wi), k+j+m2, k+j);
-
-              cpmulq15(tr,ti, wr,wi, datar[k + j + m2], datai[k + j + m2]);
+              q15_cmul(tr,ti, wr,wi, datar[k + j + m2], datai[k + j + m2]);
 
               ur = datar[k + j];
               ui = datai[k + j];
@@ -147,14 +153,11 @@ int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
               datar[k + j + m2] = ur - tr;
               datai[k + j + m2] = ui - ti;
 
-              //printf("      old w %f%+fj\n", wr,wi);
-              cpmulq15(wr,wi, wr,wi, wmr,wmi);
-              //printf("         wm %f%+fj\n", wmr,wmi);
-              //printf("      new w %f%+fj\n", wr,wi);
+              q15_cmul(wr,wi, wr,wi, wmr,wmi);
             }
         }
     }
-  //printf("done\n");
+
   return 0;
 }
 
