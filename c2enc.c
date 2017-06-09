@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "fxpmath.h"
+#include "fft.h"
 #include "c2fxp.h"
 
 /* notch filter parameter, 0.95 << 16 */
@@ -40,26 +42,22 @@ static const int16_t nlpfir[48] =
   -1062,   177,   948,  1233,  1134,   817,
     441,   121,   -93,  -204,  -243,  -238,
 };
-#define NLPFIRCOUNT (sizeof(nlpfir)/sizrof(nlpfir[0]))
+#define NLPFIRCOUNT (sizeof(nlpfir)/sizeof(nlpfir[0]))
 
 /* 64-bins Hanning window, values of:
  * nlp->w[i] = 0.5 - 0.5*cosf(2*PI*i/(m/DEC-1));
- * expressed as 16-bit fixed point. */
+ * Stored value is round(32768 * hanning). */
 static const int16_t nlpwin[64] =
 {
+      0 ,    81 ,   325 ,  728 , 1287  , 1995 ,  2847 ,  3833 ,
+   4944 ,  6169 ,  7495 , 8909 ,10398  ,11947 , 13539 , 15160 ,
+  16792 , 18421 , 20030 ,21602 ,23123  ,24576 , 25948 , 27225 ,
+  28394 , 29444 , 30364 ,31145 ,31780  ,32261 , 32585 , 32748 ,
+  32748 , 32585 , 32261 ,31780 ,31145  ,30364 , 29444 , 28394 ,
+  27225 , 25948 , 24576 ,23123 ,21602  ,20030 , 18421 , 16792 ,
+  15160 , 13539 , 11947 ,10398 , 8909  , 7495 ,  6169 ,  4944 ,
+   3833 ,  2847 ,  1995 , 1287 ,  728  ,  325 ,    81 ,     0
 };
-
-/* ========================================================================== */
-static inline int16_t fxp_smul16(int16_t a, int16_t b)
-{
-  uint16_t pos = (a>0) ^ (b>0);
-  uint16_t val = ( ((uint32_t)a&0x7FFF) * ((uint32_t)b&0x7FFF) ) >> 16;
-  if(!pos)
-    {
-      val |= 0x8000;
-    }
-  return (int16_t)val;
-}
 
 /* ========================================================================== */
 /*
@@ -76,30 +74,28 @@ static inline int16_t fxp_smul16(int16_t a, int16_t b)
  */
 static void c2enc_nlp(struct c2enc_context_s *ctx)
 {
-  uint32_t buf;
-  int i;
-  int16_t tmp;
+  int i,j;
+  q15_t tmp;
 
   /* Square the last samples */
 
   for(i=240;i<320;i++)
     {
       /* Samples are 16-bit signed, mask the sign bit before mult */
-      ctx->nlpfftr[i] = fxp_smul16(ctx->input[i], ctx->input[i]);
-      ctx->nlpffti[i] = 0; /* while we're here, zero the imaginary part*/
+      ctx->nlpsq[i] = q15_mul(ctx->input[i], ctx->input[i]);
     }
 
-  /* Notch filter at DC */
+  /* Notch filter at DC the last samples */
 
   for(i=240; i<320; i++)
     {
-      tmp  = ctx->nlpfftr[i] - ctx->nlpmemx;
-      tmp += fxp_smul16(COEFF, ctx->nlpmemy);
-      ctx->nlpmemx = ctx->nlpfftr[i];
+      tmp  = ctx->nlpsq[i] - ctx->nlpmemx;
+      tmp += q15_mul(COEFF, ctx->nlpmemy);
+      ctx->nlpmemx = ctx->nlpsq[i];
       ctx->nlpmemy = tmp;
     }
 
-  /* Low pass FIR */
+  /* Low pass FIR the last samples */
 
   for(i=240; i<320; i++)
     {
@@ -107,29 +103,38 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
         {
           ctx->nlpmemfir[j] = ctx->nlpmemfir[j+1];
         }
-      nlp->mem_fir[NLPFIRCOUNT-1] = ctx->nlpfftr[i];
+      ctx->nlpmemfir[NLPFIRCOUNT-1] = ctx->nlpsq[i];
 
       tmp = 0.0;
       for(j=0; j<NLPFIRCOUNT; j++)
         {
-          tmp += fxp_smul16(ctx->nlpmemfir[j], nlp_fir[j]);
+          tmp += q15_mul(ctx->nlpmemfir[j], nlpfir[j]);
         }
-      ctx->nlpfftr[i] = tmp;
+      ctx->nlpsq[i] = tmp;
     }
 
-  /* Decimation */
+  /* Decimation for ALL samples. This means that the result is an overlapped analysis. */
+
   for(i=0; i<64; i++)
     {
-      ctx->nlpfftr[i] = fxp_smul16(ctx->nlpfftr[i*5], nlpwin[i]);
+      ctx->nlpfftr[i] = q15_mul(ctx->nlpsq[i*5], nlpwin[i]);
+      ctx->nlpffti[i] = 0; /* while we're here, zero the imaginary part*/
     }
 
-  /* Padding */
+  /* Padding before FFT */
 
-  /* FFT */
+  for(i=64; i<CODEC2_FFTSAMPLES; i++)
+    {
+      ctx->nlpfftr[i] = 0;
+      ctx->nlpffti[i] = 0; /* while we're here, zero the imaginary part*/
+    }
+
+  /* FFT of filtered squared samples */
+  q15_fft(ctx->nlpfftr, ctx->nlpffti, CODEC2_FFTSAMPLES);
 
   /* Find global peak */
 
-  /* Post process using the sub-multiples method (MBE is not used)
+  /* Post process using the sub-multiples method (MBE is not used) */
 
   /* we have best_f0 */
 }
@@ -168,15 +173,16 @@ int c2enc_init(struct c2enc_context_s *ctx)
   for(i=0;i<CODEC2_INPUTSAMPLES*4;i++)
     {
       ctx->input[i] = 0;
+      ctx->nlpsq[i] = 0;
     }
 
   /* Erase NLP detector variables */
 
-  ctx->nlp_mem_x = 0.0;
-  ctx->nlp_mem_y = 0.0;
-  for(i=0; i<NLP_NTAP; i++)
+  ctx->nlpmemx = 0;
+  ctx->nlpmemy = 0;
+  for(i=0; i<NLPFIRCOUNT; i++)
     {
-      nlp->mem_fir[i] = 0.0;
+      ctx->nlpmemfir[i] = 0;
     }
 
   return 0;

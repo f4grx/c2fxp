@@ -21,6 +21,9 @@
 #ifndef __C2ENC__H__
 #define __C2ENC__H__
 
+#include <stdint.h>
+#include "fxpmath.h"
+
 /*
  * The input samples are signed 16-bit numbers interpreted as fixed point
  * fractions with a value between -1 and 1.
@@ -38,13 +41,14 @@
 
 struct c2enc_context_s
 {
-  uint16_t input[4*CODEC2_INPUTSAMPLES]; /* buffer for input samples, 4 frames */
+  q15_t input[4*CODEC2_INPUTSAMPLES]; /* buffer for input samples, 4 frames */
 
   /* NLP */
-  uint16_t nlpmemx, nlpmemy; /* NLP notch registers */
-  uint16_t nlpmemfir[]; /* NLP FIR filter registers */
-  uint16_t nlpfftr[CODEC2_FFTSAMPLES]; /* Sample buffer for FFT */
-  uint16_t nlpffti[CODEC2_FFTSAMPLES];
+  q15_t nlpsq[4*CODEC2_INPUTSAMPLES]; /* buffer for squared input samples, 4 frames */
+  q15_t nlpmemx, nlpmemy; /* NLP notch registers */
+  q15_t nlpmemfir[48]; /* NLP FIR filter registers */
+  q15_t nlpfftr[CODEC2_FFTSAMPLES]; /* Sample buffer for FFT */
+  q15_t nlpffti[CODEC2_FFTSAMPLES];
 };
 
 int c2enc_init(struct c2enc_context_s *ctx);
