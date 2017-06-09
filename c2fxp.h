@@ -38,11 +38,12 @@
 
 struct c2enc_context_s
 {
-  /* buffer for input samples, 4 frames */
-  uint16_t input[4*CODEC2_INPUTSAMPLES];
+  uint16_t input[4*CODEC2_INPUTSAMPLES]; /* buffer for input samples, 4 frames */
 
-  /* Sample buffer for NLP FFT */
-  uint16_t nlpfftr[CODEC2_FFTSAMPLES];
+  /* NLP */
+  uint16_t nlpmemx, nlpmemy; /* NLP notch registers */
+  uint16_t nlpmemfir[]; /* NLP FIR filter registers */
+  uint16_t nlpfftr[CODEC2_FFTSAMPLES]; /* Sample buffer for FFT */
   uint16_t nlpffti[CODEC2_FFTSAMPLES];
 };
 
