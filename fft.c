@@ -142,18 +142,18 @@ int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
 
           for(j = 0 ; j < m2; j++)
             {
-              q15_cmul(tr,ti, wr,wi, datar[k + j + m2], datai[k + j + m2]);
+              q15_cmul(&tr,&ti, wr,wi, datar[k + j + m2], datai[k + j + m2]);
 
               ur = datar[k + j];
               ui = datai[k + j];
 
-              datar[k + j] = ur + tr;
-              datai[k + j] = ui + ti;
+              datar[k + j] = q15_add(ur,tr);
+              datai[k + j] = q15_add(ui,ti);
 
-              datar[k + j + m2] = ur - tr;
-              datai[k + j + m2] = ui - ti;
+              datar[k + j + m2] = q15_add(ur, -tr);
+              datai[k + j + m2] = q15_add(ui, -ti);
 
-              q15_cmul(wr,wi, wr,wi, wmr,wmi);
+              q15_cmul(&wr,&wi, wr,wi, wmr,wmi);
             }
         }
     }

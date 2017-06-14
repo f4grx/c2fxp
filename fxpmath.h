@@ -40,25 +40,43 @@ typedef int64_t q63_t;
 #define DTOQ31(d)   (q31_t)((d)* (double)Q31)
 #define FTOQ31(f)   (q31_t)((f)* (float )Q31)
 
+/* Saturating additions */
+static inline q15_t q15_add(q15_t a, q15_t b)
+{
+  int32_t s = (int32_t)a + (int32_t)b;
+  if(s>Q15-1)
+    {
+      s = Q15 - 1;
+printf("+sat!\n");
+    }
+  if(s<-Q15)
+    {
+      s=-Q15;
+printf("-sat!\n");
+    }
+  return (q15_t)s;
+}
+
 /* Multiplications */
 
 static inline q15_t q15_mul(q15_t a, q15_t b)
-  {
-    return ((int32_t)a * (int32_t)b) >> Q15BITS;
-  }
+{
+  return ((int32_t)a * (int32_t)b) >> Q15BITS;
+}
 
 static inline q31_t q31_mul(q31_t a, q31_t b)
-  {
-    return ((int64_t)a * (int64_t)b) >> Q31BITS;
-  }
+{
+  return ((int64_t)a * (int64_t)b) >> Q31BITS;
+}
 
 /* Complex multiplications */
 
-#define q15_cmul(dr,di, ar,ai, br,bi) do { \
-  q15_t __tr__ = q15_mul(ar, br) - q15_mul(ai, bi); \
-  q15_t __ti__ = q15_mul(ar, bi) + q15_mul(br, ai); \
-  dr = __tr__; \
-  di = __ti__; \
-} while(0)
+static inline void q15_cmul(q15_t *dr, q15_t *di, q15_t ar, q15_t ai, q15_t br, q15_t bi)
+{
+  q15_t tr = q15_add(q15_mul(ar, br), -q15_mul(ai, bi));
+  q15_t ti = q15_add(q15_mul(ar, bi),  q15_mul(br, ai));
+  *dr = tr;
+  *di = ti;
+}
 
 #endif /* FXPMATH__H */

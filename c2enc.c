@@ -91,11 +91,12 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
 
   for(i=240; i<320; i++)
     {
-      tmp  = ctx->nlpsq[i] - ctx->nlpmemx;
-      tmp += q15_mul(COEFF, ctx->nlpmemy);
+      tmp = q15_add(ctx->nlpsq[i], -ctx->nlpmemx);
+      tmp = q15_add(tmp, q15_mul(COEFF, ctx->nlpmemy));
       ctx->nlpmemx = ctx->nlpsq[i];
       ctx->nlpmemy = tmp;
       ctx->nlpsq[i] = tmp;
+if(ctx->frame==34)      printf("%d\n", ctx->nlpsq[i]);
     }
 
   /* Low pass FIR the last samples */
@@ -108,13 +109,13 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
         }
       ctx->nlpmemfir[NLPFIRCOUNT-1] = ctx->nlpsq[i];
 
-      tmp = 0.0;
+      tmp = 0;
       for(j=0; j<NLPFIRCOUNT; j++)
         {
-          tmp += q15_mul(ctx->nlpmemfir[j], nlpfir[j]);
+          tmp = q15_add(tmp, q15_mul(ctx->nlpmemfir[j], nlpfir[j]));
         }
       ctx->nlpsq[i] = tmp;
-      printf("%d\n", ctx->nlpsq[i]);
+//      printf("%d\n", ctx->nlpsq[i]);
     }
 
   /* Decimation for ALL samples. This means that the result is an overlapped analysis. */
@@ -141,6 +142,7 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
 
   for(i=0; i<CODEC2_FFTSAMPLES; i++)
     {
+//      printf("i=%d val=%d , %d\n", i, ctx->nlpfftr[i],ctx->nlpffti[i]);
       ctx->nlpfftr[i]  = q15_mul(ctx->nlpfftr[i], ctx->nlpfftr[i]);
       ctx->nlpfftr[i] += q15_mul(ctx->nlpffti[i], ctx->nlpffti[i]);
     }
@@ -161,9 +163,15 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
           gmax_bin = i;
         }
     }
-//printf("imax=%d valmax=%d\n", gmax_bin, gmax);
+//printf("    imax=%d valmax=%d\n", gmax_bin, gmax);
 
   /* Post process using the sub-multiples method (MBE is not used) */
+
+  /* Shift samples in buffer (rolling analysis window of 4 frames) */
+  for(i=0; i<240; i++)
+    {
+      ctx->nlpsq[i] = ctx->nlpsq[i+80];
+    }
 
   /* we have best_f0 */
 }
@@ -181,7 +189,7 @@ static int c2enc_process_samples(struct c2enc_context_s *ctx, int16_t *buf)
   memcpy(ctx->input + 3*CODEC2_INPUTSAMPLES, buf, CODEC2_INPUTSAMPLES * sizeof(int16_t));
 
   /* Run the non linear pitch estimation algorithm */
-
+printf("----- frame %d -----\n", ctx->frame);
   c2enc_nlp(ctx);
 
   ctx->frame +=1;
