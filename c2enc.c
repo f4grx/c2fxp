@@ -26,22 +26,21 @@
 #include "fft.h"
 #include "c2fxp.h"
 
-/* notch filter parameter, 0.95 << 16 */
-#define COEFF 31130
+/* notch filter parameter, 0.95*/
+#define COEFF DTOQ15(0.95)
 
 /* 48 tap 600Hz low pass FIR filter coefficients */
 /* Converted from original codec2 implementation */
-static const int16_t nlpfir[48] =
+static const q15_t nlpfir[48] =
 {
-   -238,  -243,  -204,   -93,   121,   441,
-    817,  1134,  1233,   948,   177, -1062,
-  -2580, -4011, -4863, -4611, -2823,   710,
-   5881, 12236, 19021, 25301, 30137, 32767,
-  32767, 30137, 25301, 19021, 12236,  5881,
-    710, -2823, -4611, -4863, -4011, -2580,
-  -1062,   177,   948,  1233,  1134,   817,
-    441,   121,   -93,  -204,  -243,  -238,
+  -35,  -36,  -30,  -14,   18,   66,  121,  169,
+  183,  141,   26, -158, -384, -596, -723, -686,
+ -420,  106,  874, 1819, 2828, 3762, 4481, 4872,
+ 4872, 4481, 3762, 2828, 1819,  874,  106, -420,
+ -686, -723, -596, -384, -158,   26,  141,  183,
+  169,  121,   66,   18,  -14,  -30,  -36,  -35,
 };
+
 #define NLPFIRCOUNT (sizeof(nlpfir)/sizeof(nlpfir[0]))
 
 /* 64-bins Hanning window, values of:
@@ -91,12 +90,11 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
 
   for(i=240; i<320; i++)
     {
-      tmp = q15_add(ctx->nlpsq[i], -ctx->nlpmemx);
-      tmp = q15_add(tmp, q15_mul(COEFF, ctx->nlpmemy));
-      ctx->nlpmemx = ctx->nlpsq[i];
-      ctx->nlpmemy = tmp;
+      tmp           = q15_sub(ctx->nlpsq[i], ctx->nlpmemx);
+      tmp           = q15_add(tmp, q15_mul(COEFF, ctx->nlpmemy));
+      ctx->nlpmemx  = ctx->nlpsq[i];
+      ctx->nlpmemy  = tmp;
       ctx->nlpsq[i] = tmp;
-if(ctx->frame==34)      printf("%d\n", ctx->nlpsq[i]);
     }
 
   /* Low pass FIR the last samples */
@@ -115,7 +113,6 @@ if(ctx->frame==34)      printf("%d\n", ctx->nlpsq[i]);
           tmp = q15_add(tmp, q15_mul(ctx->nlpmemfir[j], nlpfir[j]));
         }
       ctx->nlpsq[i] = tmp;
-//      printf("%d\n", ctx->nlpsq[i]);
     }
 
   /* Decimation for ALL samples. This means that the result is an overlapped analysis. */
@@ -124,6 +121,7 @@ if(ctx->frame==34)      printf("%d\n", ctx->nlpsq[i]);
     {
       ctx->nlpfftr[i] = q15_mul(ctx->nlpsq[i*5], nlpwin[i]);
       ctx->nlpffti[i] = 0; /* while we're here, zero the imaginary part*/
+if(ctx->frame==34)      printf("%d\n", ctx->nlpfftr[i]);
     }
 
   /* Padding before FFT */
@@ -142,7 +140,7 @@ if(ctx->frame==34)      printf("%d\n", ctx->nlpsq[i]);
 
   for(i=0; i<CODEC2_FFTSAMPLES; i++)
     {
-//      printf("i=%d val=%d , %d\n", i, ctx->nlpfftr[i],ctx->nlpffti[i]);
+//if(ctx->frame==34)      printf("%d\n", ctx->nlpfftr[i]);
       ctx->nlpfftr[i]  = q15_mul(ctx->nlpfftr[i], ctx->nlpfftr[i]);
       ctx->nlpfftr[i] += q15_mul(ctx->nlpffti[i], ctx->nlpffti[i]);
     }
@@ -189,7 +187,7 @@ static int c2enc_process_samples(struct c2enc_context_s *ctx, int16_t *buf)
   memcpy(ctx->input + 3*CODEC2_INPUTSAMPLES, buf, CODEC2_INPUTSAMPLES * sizeof(int16_t));
 
   /* Run the non linear pitch estimation algorithm */
-printf("----- frame %d -----\n", ctx->frame);
+  /* printf("----- frame %d -----\n", ctx->frame); */
   c2enc_nlp(ctx);
 
   ctx->frame +=1;

@@ -40,28 +40,46 @@ typedef int64_t q63_t;
 #define DTOQ31(d)   (q31_t)((d)* (double)Q31)
 #define FTOQ31(f)   (q31_t)((f)* (float )Q31)
 
+static inline q15_t q15_sat(int32_t val)
+{
+  if(val > Q15-1)
+    {
+      val = Q15 - 1;
+      printf("+sat!\n");
+    }
+
+  if(val < -Q15)
+    {
+      val = -Q15;
+      printf("-sat!\n");
+    }
+
+  return (q15_t)val;
+}
+
 /* Saturating additions */
 static inline q15_t q15_add(q15_t a, q15_t b)
 {
-  int32_t s = (int32_t)a + (int32_t)b;
-  if(s>Q15-1)
-    {
-      s = Q15 - 1;
-printf("+sat!\n");
-    }
-  if(s<-Q15)
-    {
-      s=-Q15;
-printf("-sat!\n");
-    }
-  return (q15_t)s;
+  return q15_sat((int32_t)a + (int32_t)b);
+}
+
+static inline q15_t q15_sub(q15_t a, q15_t b)
+{
+  return q15_sat((int32_t)a - (int32_t)b);
 }
 
 /* Multiplications */
 
 static inline q15_t q15_mul(q15_t a, q15_t b)
 {
-  return ((int32_t)a * (int32_t)b) >> Q15BITS;
+  int32_t tmp = (int32_t)a * (int32_t)b;
+
+  if(tmp>0)
+    tmp -= (Q15>>1); /* Rounding */
+  else
+    tmp += (Q15>>1); /* Rounding */
+
+  return q15_sat(tmp >> Q15BITS);
 }
 
 static inline q31_t q31_mul(q31_t a, q31_t b)
