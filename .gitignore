@@ -1,3 +1,9 @@
+CMakeFiles
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+c2enc
+
 # Prerequisites
 *.d
 
