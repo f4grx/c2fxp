@@ -91,8 +91,8 @@ static inline q31_t q31_mul(q31_t a, q31_t b)
 
 static inline void q15_cmul(q15_t *dr, q15_t *di, q15_t ar, q15_t ai, q15_t br, q15_t bi)
 {
-  q15_t tr = q15_add(q15_mul(ar, br), -q15_mul(ai, bi));
-  q15_t ti = q15_add(q15_mul(ar, bi),  q15_mul(br, ai));
+  q15_t tr = q15_sub(q15_mul(ar, br), q15_mul(ai, bi));
+  q15_t ti = q15_add(q15_mul(ar, bi), q15_mul(br, ai));
   *dr = tr;
   *di = ti;
 }

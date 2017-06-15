@@ -150,8 +150,8 @@ int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
               datar[k + j] = q15_add(ur,tr);
               datai[k + j] = q15_add(ui,ti);
 
-              datar[k + j + m2] = q15_add(ur, -tr);
-              datai[k + j + m2] = q15_add(ui, -ti);
+              datar[k + j + m2] = q15_sub(ur, tr);
+              datai[k + j + m2] = q15_sub(ui, ti);
 
               q15_cmul(&wr,&wi, wr,wi, wmr,wmi);
             }

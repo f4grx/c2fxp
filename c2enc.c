@@ -121,7 +121,6 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
     {
       ctx->nlpfftr[i] = q15_mul(ctx->nlpsq[i*5], nlpwin[i]);
       ctx->nlpffti[i] = 0; /* while we're here, zero the imaginary part*/
-if(ctx->frame==34)      printf("%d\n", ctx->nlpfftr[i]);
     }
 
   /* Padding before FFT */
@@ -129,7 +128,7 @@ if(ctx->frame==34)      printf("%d\n", ctx->nlpfftr[i]);
   for(i=64; i<CODEC2_FFTSAMPLES; i++)
     {
       ctx->nlpfftr[i] = 0;
-      ctx->nlpffti[i] = 0; /* while we're here, zero the imaginary part*/
+      ctx->nlpffti[i] = 0;
     }
 
   /* FFT of filtered squared samples */
@@ -140,7 +139,7 @@ if(ctx->frame==34)      printf("%d\n", ctx->nlpfftr[i]);
 
   for(i=0; i<CODEC2_FFTSAMPLES; i++)
     {
-//if(ctx->frame==34)      printf("%d\n", ctx->nlpfftr[i]);
+if(ctx->frame==34)      printf("%d\n", ctx->nlpfftr[i]);
       ctx->nlpfftr[i]  = q15_mul(ctx->nlpfftr[i], ctx->nlpfftr[i]);
       ctx->nlpfftr[i] += q15_mul(ctx->nlpffti[i], ctx->nlpffti[i]);
     }
