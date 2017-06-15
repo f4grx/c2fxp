@@ -47,7 +47,7 @@ struct c2enc_context_s
 
   /* NLP */
   q15_t nlpsq[4*CODEC2_INPUTSAMPLES]; /* buffer for squared input samples, 4 frames */
-  q15_t nlpmemx, nlpmemy; /* NLP notch registers */
+  q31_t nlpmemx, nlpmemy; /* NLP notch registers, longer precision */
   q15_t nlpmemfir[48]; /* NLP FIR filter registers */
   q15_t nlpfftr[CODEC2_FFTSAMPLES]; /* Sample buffer for FFT */
   q15_t nlpffti[CODEC2_FFTSAMPLES];

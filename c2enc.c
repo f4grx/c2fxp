@@ -27,18 +27,34 @@
 #include "c2fxp.h"
 
 /* notch filter parameter, 0.95*/
-#define COEFF DTOQ15(0.95)
+#define COEFF DTOQ31(0.95)
 
 /* 48 tap 600Hz low pass FIR filter coefficients */
 /* Converted from original codec2 implementation */
 static const q15_t nlpfir[48] =
 {
-  -35,  -36,  -30,  -14,   18,   66,  121,  169,
-  183,  141,   26, -158, -384, -596, -723, -686,
- -420,  106,  874, 1819, 2828, 3762, 4481, 4872,
- 4872, 4481, 3762, 2828, 1819,  874,  106, -420,
- -686, -723, -596, -384, -158,   26,  141,  183,
-  169,  121,   66,   18,  -14,  -30,  -36,  -35,
+   -35,  -36,  -30,  -14,   18,   66,  121,  169,
+   183,  141,   26, -158, -384, -596, -723, -686,
+  -420,  106,  874, 1819, 2828, 3762, 4481, 4872,
+  4872, 4481, 3762, 2828, 1819,  874,  106, -420,
+  -686, -723, -596, -384, -158,   26,  141,  183,
+   169,  121,   66,   18,  -14,  -30,  -36,  -35,
+};
+
+static const q31_t nlpfirq31[48] =
+{
+   -2323174,  -2364024,  -1992196,   -908159,
+    1181850,   4301377,   7958254,  11048678,
+   12009731,   9242073,   1724097, -10351861,
+  -25138036, -39082645, -47384832, -44926668,
+  -27506755,   6915923,  57303048, 119229632,
+  185340603, 246535246, 293651338, 319278334,
+  319278334, 293651338, 246535246, 185340603,
+  119229632,  57303048,   6915923, -27506755,
+  -44926668, -47384832, -39082645, -25138036,
+  -10351861,   1724097,   9242073,  12009731,
+   11048678,   7958254,   4301377,   1181850,
+    -908159,  -1992196,  -2364024,  -2323174,
 };
 
 #define NLPFIRCOUNT (sizeof(nlpfir)/sizeof(nlpfir[0]))
@@ -74,8 +90,8 @@ static const int16_t nlpwin[64] =
 static void c2enc_nlp(struct c2enc_context_s *ctx)
 {
   int i,j;
-  q15_t tmp;
-  q15_t gmax;
+  q31_t ntmp;
+  q15_t tmp,gmax;
   int gmax_bin;
 
   /* Square the last samples */
@@ -86,15 +102,16 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
       ctx->nlpsq[i] = q15_mul(ctx->input[i], ctx->input[i]);
     }
 
-  /* Notch filter at DC the last samples */
+  /* Notch filter at DC the last samples. This is an IIR filter, it
+   * requires more precision to avoid bias. */
 
   for(i=240; i<320; i++)
     {
-      tmp           = q15_sub(ctx->nlpsq[i], ctx->nlpmemx);
-      tmp           = q15_add(tmp, q15_mul(COEFF, ctx->nlpmemy));
-      ctx->nlpmemx  = ctx->nlpsq[i];
-      ctx->nlpmemy  = tmp;
-      ctx->nlpsq[i] = tmp;
+      ntmp           = q31_sub(Q15TOQ31(ctx->nlpsq[i]), ctx->nlpmemx);
+      ntmp           = q31_add(ntmp, q31_mul(COEFF, ctx->nlpmemy));
+      ctx->nlpmemx  = Q15TOQ31(ctx->nlpsq[i]);
+      ctx->nlpmemy  = ntmp;
+      ctx->nlpsq[i] = Q31TOQ15(ntmp);
     }
 
   /* Low pass FIR the last samples */
@@ -107,12 +124,13 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
         }
       ctx->nlpmemfir[NLPFIRCOUNT-1] = ctx->nlpsq[i];
 
-      tmp = 0;
+      ntmp = 0;
       for(j=0; j<NLPFIRCOUNT; j++)
         {
-          tmp = q15_add(tmp, q15_mul(ctx->nlpmemfir[j], nlpfir[j]));
+          ntmp = q31_add(ntmp, q31_mul(Q15TOQ31(ctx->nlpmemfir[j]), nlpfirq31[j]));
         }
-      ctx->nlpsq[i] = tmp;
+      ctx->nlpsq[i] = Q31TOQ15(ntmp);
+if(ctx->frame==34)      printf("%d\n", ctx->nlpsq[i]);
     }
 
   /* Decimation for ALL samples. This means that the result is an overlapped analysis. */
@@ -139,7 +157,6 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
 
   for(i=0; i<CODEC2_FFTSAMPLES; i++)
     {
-if(ctx->frame==34)      printf("%d\n", ctx->nlpfftr[i]);
       ctx->nlpfftr[i]  = q15_mul(ctx->nlpfftr[i], ctx->nlpfftr[i]);
       ctx->nlpfftr[i] += q15_mul(ctx->nlpffti[i], ctx->nlpffti[i]);
     }
