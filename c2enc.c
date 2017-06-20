@@ -18,7 +18,7 @@
 
 /* codec2 encoder implementation */
 
-#define FRAME 183
+#define FRAME 88
 
 #include <stdint.h>
 #include <stdio.h>
@@ -95,6 +95,8 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
   q31_t ntmp;
   q15_t tmp,gmax;
   int gmax_bin;
+  uint32_t scale = 512;
+  uint32_t acc;
 
   /* Square the last samples */
 
@@ -134,10 +136,17 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
       ctx->nlpsq[i] = Q31TOQ15(ntmp);
     }
 
-  uint32_t scale = 512;
-  uint32_t acc;
+  /* Decimation for ALL samples. This means that the result is an overlapped analysis
+   * of the last 4 frames. */
 
-  /* Decimation for ALL samples. This means that the result is an overlapped analysis. */
+  /* Fixed point FFT divides output coefficients by the number of FFT points.
+   * This means that for a 512-point FFT, output coefficients will be 512 times smaller
+   * than expected. We can compensate for this by pre multiplying FFT inputs by 512,
+   * but this may result in clipping. To overcome that, we multiply samples by the highest
+   * possible power of two that will not result in clipping. Then, we apply FFT, and we
+   * finish by multiplying the FFT coefficients enough to ensure that the total scale is 512.
+   */
+
 rescale:
   acc = 0;
 
@@ -147,14 +156,14 @@ rescale:
 
       acc |= q15_abs(ctx->nlpfftr[i]) * scale;
 
-      ctx->nlpffti[i] = 0; /* while we're here, zero the imaginary part*/
+      if(scale != 512) continue;
+      ctx->nlpffti[i] = 0; /* while we're here, zero the imaginary part (but only once)*/
     }
 
   if(acc>>16)
     {
       if(scale>1)
         {
-          if(ctx->frame==FRAME) printf("[%d] scale -> %d\n", ctx->frame, scale);
           scale /= 2;
           goto rescale;
         }
@@ -176,12 +185,12 @@ rescale:
 
   for(i=0; i<CODEC2_FFTSAMPLES; i++)
     {
-      ctx->nlpfftr[i] = ctx->nlpfftr[i] * 512;
-      ctx->nlpffti[i] = ctx->nlpffti[i] * 512;
+      ctx->nlpfftr[i] = ctx->nlpfftr[i] * 512 / scale;
+      ctx->nlpffti[i] = ctx->nlpffti[i] * 512 / scale;
+if(ctx->frame==FRAME)      printf("%d\n", ctx->nlpfftr[i]);
 
       ctx->nlpfftr[i] = q15_mul(ctx->nlpfftr[i] , ctx->nlpfftr[i]);
       ctx->nlpffti[i] = q15_mul(ctx->nlpffti[i] , ctx->nlpffti[i]);
-if(ctx->frame==FRAME)      printf("%d\n", ctx->nlpfftr[i]);
 
       ctx->nlpfftr[i]  = q15_add(ctx->nlpfftr[i], ctx->nlpffti[i]);
     }
@@ -195,14 +204,13 @@ if(ctx->frame==FRAME)      printf("%d\n", ctx->nlpfftr[i]);
 
   for(i=CODEC2_FFTSAMPLES*5*F_MIN_S/8000; i<=CODEC2_FFTSAMPLES*5*F_MAX_S/8000; i++)
     {
-//printf("i=%d val=%d\n", i, ctx->nlpfftr[i]);
       if (ctx->nlpfftr[i] > gmax)
         {
           gmax = ctx->nlpfftr[i];
           gmax_bin = i;
         }
     }
-//printf("    imax=%d valmax=%d\n", gmax_bin, gmax);
+//printf("%d %d\n", gmax_bin, scale);
 
   /* Post process using the sub-multiples method (MBE is not used) */
 
