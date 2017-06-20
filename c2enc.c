@@ -18,6 +18,8 @@
 
 /* codec2 encoder implementation */
 
+#define FRAME 183
+
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -130,15 +132,32 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
           ntmp = q31_add(ntmp, q31_mul(Q15TOQ31(ctx->nlpmemfir[j]), nlpfirq31[j]));
         }
       ctx->nlpsq[i] = Q31TOQ15(ntmp);
-if(ctx->frame==34)      printf("%d\n", ctx->nlpsq[i]);
     }
 
+  uint32_t scale = 512;
+  uint32_t acc;
+
   /* Decimation for ALL samples. This means that the result is an overlapped analysis. */
+rescale:
+  acc = 0;
 
   for(i=0; i<64; i++)
     {
-      ctx->nlpfftr[i] = q15_mul(ctx->nlpsq[i*5], nlpwin[i]);
+      ctx->nlpfftr[i] = q15_mul(ctx->nlpsq[i*5], nlpwin[i]) * scale;
+
+      acc |= q15_abs(ctx->nlpfftr[i]) * scale;
+
       ctx->nlpffti[i] = 0; /* while we're here, zero the imaginary part*/
+    }
+
+  if(acc>>16)
+    {
+      if(scale>1)
+        {
+          if(ctx->frame==FRAME) printf("[%d] scale -> %d\n", ctx->frame, scale);
+          scale /= 2;
+          goto rescale;
+        }
     }
 
   /* Padding before FFT */
@@ -157,8 +176,14 @@ if(ctx->frame==34)      printf("%d\n", ctx->nlpsq[i]);
 
   for(i=0; i<CODEC2_FFTSAMPLES; i++)
     {
-      ctx->nlpfftr[i]  = q15_mul(ctx->nlpfftr[i], ctx->nlpfftr[i]);
-      ctx->nlpfftr[i] += q15_mul(ctx->nlpffti[i], ctx->nlpffti[i]);
+      ctx->nlpfftr[i] = ctx->nlpfftr[i] * 512;
+      ctx->nlpffti[i] = ctx->nlpffti[i] * 512;
+
+      ctx->nlpfftr[i] = q15_mul(ctx->nlpfftr[i] , ctx->nlpfftr[i]);
+      ctx->nlpffti[i] = q15_mul(ctx->nlpffti[i] , ctx->nlpffti[i]);
+if(ctx->frame==FRAME)      printf("%d\n", ctx->nlpfftr[i]);
+
+      ctx->nlpfftr[i]  = q15_add(ctx->nlpfftr[i], ctx->nlpffti[i]);
     }
 
 #define F_MIN_S 50

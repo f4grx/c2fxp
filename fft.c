@@ -138,14 +138,14 @@ int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
 
       for(k = 0; k < n; k += m)
         {
-          wr=1; wi=0;
+          wr=Q15/2; wi=0; /* 0.5 + 0. j */
 
           for(j = 0 ; j < m2; j++)
             {
               q15_cmul(&tr,&ti, wr,wi, datar[k + j + m2], datai[k + j + m2]);
 
-              ur = datar[k + j];
-              ui = datai[k + j];
+              ur = datar[k + j]/2;
+              ui = datai[k + j]/2;
 
               datar[k + j] = q15_add(ur,tr);
               datai[k + j] = q15_add(ui,ti);
@@ -153,7 +153,7 @@ int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
               datar[k + j + m2] = q15_sub(ur, tr);
               datai[k + j + m2] = q15_sub(ui, ti);
 
-              q15_cmul(&wr,&wi, wr,wi, wmr,wmi);
+            q15_cmul(&wr,&wi, wr,wi, wmr,wmi);
             }
         }
     }
@@ -161,3 +161,26 @@ int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
   return 0;
 }
 
+#ifdef TEST
+#define N 8
+
+int main(int argc, char **argv)
+{
+  q15_t re[N];
+  q15_t im[N];
+  int i;
+
+  re[0] = FTOQ15(1/8.0); re[1]=FTOQ15(2/8.0); re[2]=FTOQ15(3/8.0); re[3]=FTOQ15(4/8.0);
+  re[4] = FTOQ15(5/8.0); re[5]=FTOQ15(6/8.0); re[6]=FTOQ15(7/8.0); re[7]=FTOQ15(8/8.0);
+  im[0] = 0; im[1]=0; im[2]=0; im[3]=0; im[4] = 0; im[5]=0; im[6]=0; im[7]=0;
+
+  printf("input\n");
+  for(i=0;i<N;i++) printf("%f%+fj\n",Q15TOF(re[i]),Q15TOF(im[i]));
+
+  q15_fft(re,im,N);
+
+  printf("output\n");
+  for(i=0;i<N;i++) printf("%f%+fj\n",Q15TOF(re[i])*N,Q15TOF(im[i])*N);
+}
+
+#endif

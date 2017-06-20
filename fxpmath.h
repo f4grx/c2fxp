@@ -41,18 +41,18 @@ typedef int32_t q31_t;
 
 /* Saturation */
 
-static inline q15_t q15_sat(int32_t val)
+static inline q15_t q15_sat_dbg(int32_t val, const char *file, int line)
 {
   if(val > Q15-1)
     {
       val = Q15 - 1;
-      printf("+sat!\n");
+      printf("+sat! at %s:%d\n",file,line);
     }
 
   if(val < -Q15)
     {
       val = -Q15;
-      printf("-sat!\n");
+      printf("-sat! at %s:%d\n",file,line);
     }
 
   return (q15_t)val;
@@ -75,12 +75,23 @@ static inline q31_t q31_sat(int64_t val)
   return (q31_t)val;
 }
 
+/* abs */
+
+static inline uint16_t q15_abs(q15_t val)
+{
+  if(val>0)
+    return (uint16_t)val;
+  else
+    return (uint16_t)-val;
+}
+
 /* Saturating addition */
 
-static inline q15_t q15_add(q15_t a, q15_t b)
+static inline q15_t q15_add_dbg(q15_t a, q15_t b, const char *file, int line)
 {
-  return q15_sat((int32_t)a + (int32_t)b);
+  return q15_sat_dbg((int32_t)a + (int32_t)b, file,line);
 }
+#define q15_add(a,b) q15_add_dbg(a,b,__FILE__,__LINE__)
 
 static inline q31_t q31_add(q31_t a, q31_t b)
 {
@@ -89,10 +100,11 @@ static inline q31_t q31_add(q31_t a, q31_t b)
 
 /* Saturating subtraction */
 
-static inline q15_t q15_sub(q15_t a, q15_t b)
+static inline q15_t q15_sub_dbg(q15_t a, q15_t b, const char *file, int line)
 {
-  return q15_sat((int32_t)a - (int32_t)b);
+  return q15_sat_dbg((int32_t)a - (int32_t)b, file,line);
 }
+#define q15_sub(a,b) q15_sub_dbg(a,b,__FILE__,__LINE__)
 
 static inline q31_t q31_sub(q31_t a, q31_t b)
 {
@@ -101,7 +113,7 @@ static inline q31_t q31_sub(q31_t a, q31_t b)
 
 /* Multiplication */
 
-static inline q15_t q15_mul(q15_t a, q15_t b)
+static inline q15_t q15_mul_dbg(q15_t a, q15_t b, const char *file, int line)
 {
   int32_t tmp = (int32_t)a * (int32_t)b;
 
@@ -110,8 +122,9 @@ static inline q15_t q15_mul(q15_t a, q15_t b)
   else
     tmp += (Q15>>1); /* Rounding */
 
-  return q15_sat(tmp >> Q15BITS);
+  return q15_sat_dbg(tmp >> Q15BITS, file,line);
 }
+#define q15_mul(a,b) q15_mul_dbg(a,b,__FILE__,__LINE__)
 
 static inline q31_t q31_mul(q31_t a, q31_t b)
 {
