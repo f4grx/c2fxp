@@ -136,7 +136,7 @@ static void c2enc_nlp(struct c2enc_context_s *ctx)
       ctx->nlpsq[i] = Q31TOQ15(ntmp);
     }
 
-  /* Decimation for ALL samples. This means that the result is an overlapped analysis
+  /* Decimation, for ALL samples. This means that the result is an overlapped analysis
    * of the last 4 frames. */
 
   /* Fixed point FFT divides output coefficients by the number of FFT points.
@@ -160,6 +160,8 @@ rescale:
       ctx->nlpffti[i] = 0; /* while we're here, zero the imaginary part (but only once)*/
     }
 
+  /* detect overflow during scaling */
+
   if(acc>>16)
     {
       if(scale>1)
@@ -177,9 +179,36 @@ rescale:
       ctx->nlpffti[i] = 0;
     }
 
-  /* FFT of filtered squared samples */
+  /* Execute FFT of filtered squared samples */
 
   q15_fft(ctx->nlpfftr, ctx->nlpffti, CODEC2_FFTSAMPLES);
+
+  /* Scale output coefficient for maximum amplitude without clipping */
+
+  scale = 1024;
+rescaleout:
+  acc = 0;
+  for(i=0; i<CODEC2_FFTSAMPLES; i++)
+    {
+      /* Finish scaling to avoid loosing resolution in the next mults */
+      acc |= q15_abs(ctx->nlpfftr[i]) * scale;
+      acc |= q15_abs(ctx->nlpffti[i]) * scale;
+
+if(ctx->frame==FRAME)      printf("%d\n", ctx->nlpfftr[i]);
+    }
+
+  /* detect overflow during scaling */
+
+  if(acc>>16)
+    {
+      if(scale>1)
+        {
+  printf("[%d] output scale: %d\n", ctx->frame, scale);
+          scale /= 2;
+          goto rescaleout;
+        }
+    }
+
 
   /* Compute amplitude */
 
@@ -187,7 +216,6 @@ rescale:
     {
       ctx->nlpfftr[i] = ctx->nlpfftr[i] * 512 / scale;
       ctx->nlpffti[i] = ctx->nlpffti[i] * 512 / scale;
-if(ctx->frame==FRAME)      printf("%d\n", ctx->nlpfftr[i]);
 
       ctx->nlpfftr[i] = q15_mul(ctx->nlpfftr[i] , ctx->nlpfftr[i]);
       ctx->nlpffti[i] = q15_mul(ctx->nlpffti[i] , ctx->nlpffti[i]);
@@ -199,6 +227,7 @@ if(ctx->frame==FRAME)      printf("%d\n", ctx->nlpfftr[i]);
 #define F_MAX_S 400
 
   /* Find global peak */
+
   gmax = 0;
   gmax_bin = CODEC2_FFTSAMPLES*5*F_MIN_S/8000;
 
@@ -210,6 +239,7 @@ if(ctx->frame==FRAME)      printf("%d\n", ctx->nlpfftr[i]);
           gmax_bin = i;
         }
     }
+
 //printf("%d %d\n", gmax_bin, scale);
 
   /* Post process using the sub-multiples method (MBE is not used) */

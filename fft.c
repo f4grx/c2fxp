@@ -113,6 +113,8 @@ void cordicfq15(q15_t *vcos, q15_t *vsin, float angle) {
 
 /* ========================================================================== */
 /* naive implementation (wikipedia algorithm, with some improvements) */
+/* fixed point conversion needs data scaling, see:
+ * https://fr.mathworks.com/help/fixedpoint/ug/convert-fast-fourier-transform-fft-to-fixed-point.html */
 int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
 {
   uint32_t s;
@@ -182,5 +184,6 @@ int main(int argc, char **argv)
   printf("output\n");
   for(i=0;i<N;i++) printf("%f%+fj\n",Q15TOF(re[i])*N,Q15TOF(im[i])*N);
 }
-
 #endif
+
+
