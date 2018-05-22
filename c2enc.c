@@ -183,46 +183,6 @@ rescale:
 
   q15_fft(ctx->nlpfftr, ctx->nlpffti, CODEC2_FFTSAMPLES);
 
-  /* Scale output coefficient for maximum amplitude without clipping */
-
-  scale = 1024;
-rescaleout:
-  acc = 0;
-  for(i=0; i<CODEC2_FFTSAMPLES; i++)
-    {
-      /* Finish scaling to avoid loosing resolution in the next mults */
-      acc |= q15_abs(ctx->nlpfftr[i]) * scale;
-      acc |= q15_abs(ctx->nlpffti[i]) * scale;
-
-if(ctx->frame==FRAME)      printf("%d\n", ctx->nlpfftr[i]);
-    }
-
-  /* detect overflow during scaling */
-
-  if(acc>>16)
-    {
-      if(scale>1)
-        {
-  printf("[%d] output scale: %d\n", ctx->frame, scale);
-          scale /= 2;
-          goto rescaleout;
-        }
-    }
-
-
-  /* Compute amplitude */
-
-  for(i=0; i<CODEC2_FFTSAMPLES; i++)
-    {
-      ctx->nlpfftr[i] = ctx->nlpfftr[i] * 512 / scale;
-      ctx->nlpffti[i] = ctx->nlpffti[i] * 512 / scale;
-
-      ctx->nlpfftr[i] = q15_mul(ctx->nlpfftr[i] , ctx->nlpfftr[i]);
-      ctx->nlpffti[i] = q15_mul(ctx->nlpffti[i] , ctx->nlpffti[i]);
-
-      ctx->nlpfftr[i]  = q15_add(ctx->nlpfftr[i], ctx->nlpffti[i]);
-    }
-
 #define F_MIN_S 50
 #define F_MAX_S 400
 
@@ -240,7 +200,7 @@ if(ctx->frame==FRAME)      printf("%d\n", ctx->nlpfftr[i]);
         }
     }
 
-//printf("%d %d\n", gmax_bin, scale);
+printf("%d\n", gmax_bin);
 
   /* Post process using the sub-multiples method (MBE is not used) */
 

@@ -45,8 +45,16 @@ uint32_t log2_32(uint32_t value)
 
 
 /* ========================================================================== */
-static inline void q15_swap2(q15_t *arr1, q15_t *arr2, int a, int b) {
+static inline void q15_swap2(q15_t *arr1, q15_t *arr2, int a, int b)
+{
   q15_t x;
+  x = arr1[a]; arr1[a] = arr1[b]; arr1[b] = x;
+  x = arr2[a]; arr2[a] = arr2[b]; arr2[b] = x;
+}
+
+static inline void q31_swap2(q31_t *arr1, q31_t *arr2, int a, int b)
+{
+  q31_t x;
   x = arr1[a]; arr1[a] = arr1[b]; arr1[b] = x;
   x = arr2[a]; arr2[a] = arr2[b]; arr2[b] = x;
 }
@@ -104,11 +112,66 @@ void q15_bitreverse2(q15_t *data1, q15_t *data2, int m)
     }
 }
 
+void q31_bitreverse2(q31_t *data1, q31_t *data2, int m)
+{
+  //int br[256]; //enough for 131072 points (m=17, m2=8)
+  //int br[128]; //enough for 32768 points (m=15, m2=7)
+  //int br[64]; //enough for 8192 points (m=13, m2=6)
+  int br[32]; //enough for 2048 points (m=11, m2=5)
+  int m2,c,odd,offset,b_size,i,j,k;
+  m2 = m >> 1;
+  if(m2>5) return; //Error
+
+  c  = 1 << m2;
+  odd = 0;
+  if(m != m2 << 1)
+    {
+      odd = 1;
+    }
+  offset = 1 << (m - 1);
+  b_size = 2;
+  br[0]=0;
+  br[1]=offset;
+  q31_swap2(data1, data2, 1, offset);
+  if(odd)
+    {
+      q31_swap2(data1, data2, 1 + c, offset + c);
+    }
+  while(b_size < c)
+    {
+      offset >>= 1;
+      for(i = b_size; i < (b_size << 1); i++)
+        {
+          k = br[i - b_size] + offset;
+          br[i]=k;
+          q31_swap2(data1, data2, i, k);
+          if(odd)
+            {
+              q31_swap2(data1, data2, i+c, k+c);
+            }
+          for(j = 1; j < i; j++)
+            {
+              q31_swap2(data1, data2, i + br[j], k + j);
+              if(odd)
+                {
+                  q31_swap2(data1, data2, i + br[j] + c, k + j + c);
+                }
+            }
+        }
+      b_size <<= 1;
+    }
+}
+
 /* ========================================================================== */
 #include <math.h>
 void cordicfq15(q15_t *vcos, q15_t *vsin, float angle) {
     *vcos = FTOQ15(cos(angle));
     *vsin = FTOQ15(sin(angle));
+}
+
+void cordicfq31(q31_t *vcos, q31_t *vsin, float angle) {
+    *vcos = FTOQ31(cos(angle));
+    *vsin = FTOQ31(sin(angle));
 }
 
 /* ========================================================================== */
@@ -123,9 +186,9 @@ int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
   uint32_t j;
   uint32_t rounds = log2_32(n);
 
-  q15_t wmr, wmi; //complex twiddle factor
-  q15_t wr, wi;
-  q15_t tr, ti;
+  q31_t wmr, wmi; //complex twiddle factor
+  q31_t wr, wi;
+  q31_t tr, ti;
   q15_t ur, ui;
 
   q15_bitreverse2(datar, datai, rounds);
@@ -136,26 +199,25 @@ int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
       m = 1 << s;
       m2 = m >> 1;
       angle = -2.0*M_PI/(float)m;
-      cordicfq15(&wmr, &wmi, angle);
-
+      cordicfq31(&wmr, &wmi, angle);
       for(k = 0; k < n; k += m)
         {
-          wr=Q15/2; wi=0; /* 0.5 + 0. j */
+          wr=FTOQ31(0.9); wi=0; /* 0.5 + 0. j */
 
           for(j = 0 ; j < m2; j++)
             {
-              q15_cmul(&tr,&ti, wr,wi, datar[k + j + m2], datai[k + j + m2]);
+              q31_cmul(&tr,&ti, wr,wi, Q15TOQ31(datar[k + j + m2]), Q15TOQ31(datai[k + j + m2]));
 
-              ur = datar[k + j]/2;
-              ui = datai[k + j]/2;
+              ur = datar[k + j];
+              ui = datai[k + j];
 
-              datar[k + j] = q15_add(ur,tr);
-              datai[k + j] = q15_add(ui,ti);
+              datar[k + j] = q15_add(ur, Q31TOQ15(tr));
+              datai[k + j] = q15_add(ui, Q31TOQ15(ti));
 
-              datar[k + j + m2] = q15_sub(ur, tr);
-              datai[k + j + m2] = q15_sub(ui, ti);
+              datar[k + j + m2] = q15_sub(ur, Q31TOQ15(tr));
+              datai[k + j + m2] = q15_sub(ui, Q31TOQ15(ti));
 
-            q15_cmul(&wr,&wi, wr,wi, wmr,wmi);
+            q31_cmul(&wr,&wi, wr,wi, wmr,wmi);
             }
         }
     }
@@ -163,6 +225,52 @@ int q15_fft(q15_t *datar, q15_t *datai, uint32_t n)
   return 0;
 }
 
+int q31_fft(q31_t *datar, q31_t *datai, uint32_t n)
+{
+  uint32_t s;
+  uint32_t m,m2;
+  uint32_t k;
+  uint32_t j;
+  uint32_t rounds = log2_32(n);
+
+  q31_t wmr, wmi; //complex twiddle factor
+  q31_t wr, wi;
+  q31_t tr, ti;
+  q31_t ur, ui;
+
+  q31_bitreverse2(datar, datai, rounds);
+
+  for(s=1; s<=rounds; s++)
+    {
+      float angle;
+      m = 1 << s;
+      m2 = m >> 1;
+      angle = -2.0*M_PI/(float)m;
+      cordicfq31(&wmr, &wmi, angle);
+      for(k = 0; k < n; k += m)
+        {
+          wr=FTOQ31(0.9); wi=0; /* 0.5 + 0. j */
+
+          for(j = 0 ; j < m2; j++)
+            {
+              q31_cmul(&tr,&ti, wr,wi, datar[k + j + m2], datai[k + j + m2]);
+
+              ur = datar[k + j];
+              ui = datai[k + j];
+
+              datar[k + j] = q31_add(ur, tr);
+              datai[k + j] = q31_add(ui, ti);
+
+              datar[k + j + m2] = q31_sub(ur, tr);
+              datai[k + j + m2] = q31_sub(ui, ti);
+
+            q31_cmul(&wr,&wi, wr,wi, wmr,wmi);
+            }
+        }
+    }
+
+  return 0;
+}
 #ifdef TEST
 #define N 8
 

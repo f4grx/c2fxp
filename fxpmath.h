@@ -46,13 +46,13 @@ static inline q15_t q15_sat_dbg(int32_t val, const char *file, int line)
   if(val > Q15-1)
     {
       val = Q15 - 1;
-      printf("+sat! at %s:%d\n",file,line);
+      //printf("+sat! at %s:%d\n",file,line);
     }
 
   if(val < -Q15)
     {
       val = -Q15;
-      printf("-sat! at %s:%d\n",file,line);
+      //printf("-sat! at %s:%d\n",file,line);
     }
 
   return (q15_t)val;
@@ -63,13 +63,13 @@ static inline q31_t q31_sat(int64_t val)
   if(val > (int64_t)(Q31-1))
     {
       val = (int64_t)(Q31 - 1);
-      printf("+sat!\n");
+      //printf("+sat!\n");
     }
 
   if(val < (int64_t)-Q31)
     {
       val = (int64_t)-Q31;
-      printf("-sat!\n");
+      //printf("-sat!\n");
     }
 
   return (q31_t)val;
@@ -144,6 +144,14 @@ static inline void q15_cmul(q15_t *dr, q15_t *di, q15_t ar, q15_t ai, q15_t br, 
 {
   q15_t tr = q15_sub(q15_mul(ar, br), q15_mul(ai, bi));
   q15_t ti = q15_add(q15_mul(ar, bi), q15_mul(br, ai));
+  *dr = tr;
+  *di = ti;
+}
+
+static inline void q31_cmul(q31_t *dr, q31_t *di, q31_t ar, q31_t ai, q31_t br, q31_t bi)
+{
+  q31_t tr = q31_sub(q31_mul(ar, br), q31_mul(ai, bi));
+  q31_t ti = q31_add(q31_mul(ar, bi), q31_mul(br, ai));
   *dr = tr;
   *di = ti;
 }
