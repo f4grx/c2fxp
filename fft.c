@@ -61,7 +61,9 @@ static inline void q31_swap2(q31_t *arr1, q31_t *arr2, int a, int b)
 
 /* ========================================================================== */
 /* Fast Bit reversal */
-/* A FAST RECURSIVE BIT-REVERSAL ALGORITHM' Jechang Jeong and William J. Williams, doi:10.1109@ICASSP.1990.115695 */
+/* A FAST RECURSIVE BIT-REVERSAL ALGORITHM
+ * Jechang Jeong and William J. Williams, doi:10.1109@ICASSP.1990.115695
+ */
 void q15_bitreverse2(q15_t *data1, q15_t *data2, int m)
 {
   //int br[256]; //enough for 131072 points (m=17, m2=8)
